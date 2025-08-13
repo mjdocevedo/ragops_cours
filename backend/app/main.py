@@ -34,17 +34,57 @@ async def health() -> Dict[str, str]:
 
 @app.post("/ingest")
 async def ingest(items: List[IngestItem]):
+    """Ingest documents with automatic embedding generation"""
     index = meili_client.index(INDEX_NAME)
-    payload = [
-        {"id": it.id, "content": it.text, "metadata": it.metadata or {}} for it in items
-    ]
-    index.add_documents(payload)
-    return {"indexed": len(payload)}
+    
+    # Generate embeddings for each document
+    payload = []
+    for item in items:
+        try:
+            # Generate embedding for the text content
+            embedding = await get_embedding(item.text)
+            
+            doc = {
+                "id": item.id,
+                "content": item.text,
+                "metadata": item.metadata or {},
+                "_vectors": {
+                    "default": embedding
+                }
+            }
+            payload.append(doc)
+            
+        except Exception as e:
+            print(f"Error processing document {item.id}: {e}")
+            # Add document without embedding (will be rejected but logged)
+            payload.append({
+                "id": item.id,
+                "content": item.text,
+                "metadata": item.metadata or {},
+            })
+    
+    # Add documents to Meilisearch
+    try:
+        task = index.add_documents(payload)
+        return {"indexed": len(payload), "task": task}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Meilisearch error: {str(e)}")
 
 
 class Query(BaseModel):
     query: str
     k: int = 5
+
+
+class ChatMsg(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMsg]
+    temperature: float = 0.2
+    model: str = "groq-llama3"
 
 
 async def get_embedding(text: str) -> List[float]:
@@ -107,6 +147,23 @@ async def search(q: Query):
     r.setex(qkey, 600, answer)
 
     return {"cached": False, "answer": answer, "hits": hits}
+
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    url = f"{PROXY_URL}/chat/completions"
+    headers = {"Authorization": f"Bearer {PROXY_KEY}"} if PROXY_KEY else {}
+    body = {
+        "model": req.model,
+        "messages": [m.model_dump() for m in req.messages],
+        "temperature": req.temperature,
+    }
+    async with httpx.AsyncClient(timeout=120) as client:
+        res = await client.post(url, headers=headers, json=body)
+        if res.status_code != 200:
+            raise HTTPException(status_code=500, detail=f"LLM error: {res.text}")
+        answer = res.json()["choices"][0]["message"]["content"]
+    return {"answer": answer}
 
 
 def _ensure_index(uid: str) -> Dict[str, Any]:

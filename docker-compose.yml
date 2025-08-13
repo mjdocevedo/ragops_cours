@@ -29,12 +29,12 @@ services:
       API="http://meilisearch:7700"
       KEY="$${MEILI_KEY}"
       # create indexes if missing
-      curl -fsS -X POST "$API/indexes" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"uid":"documents","primaryKey":"id"}' || true
-      curl -fsS -X POST "$API/indexes" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"uid":"chunks","primaryKey":"id"}' || true
+      curl -fsS -X POST "$$API/indexes" -H "Authorization: Bearer $$KEY" -H "Content-Type: application/json" -d '{"uid":"documents","primaryKey":"id"}' || true
+      curl -fsS -X POST "$$API/indexes" -H "Authorization: Bearer $$KEY" -H "Content-Type: application/json" -d '{"uid":"chunks","primaryKey":"id"}' || true
       # JSON settings payload
-      JSON_PAYLOAD="{\"embedders\":{\"default\":{\"source\":\"userProvided\",\"dimensions\":$DIM}},\"searchableAttributes\":[\"content\",\"title\"],\"displayedAttributes\":[\"id\",\"content\",\"title\",\"metadata\",\"source\",\"tags\"],\"filterableAttributes\":[\"source\",\"tags\",\"metadata.sha\",\"metadata.lang\"],\"sortableAttributes\":[\"created_at\",\"updated_at\"]}"
-      curl -fsS -X PATCH "$API/indexes/documents/settings" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d "$JSON_PAYLOAD" || true
-      curl -fsS -X PATCH "$API/indexes/chunks/settings" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d "$JSON_PAYLOAD" || true
+      JSON_PAYLOAD="{\"embedders\":{\"default\":{\"source\":\"userProvided\",\"dimensions\":$$DIM}},\"searchableAttributes\":[\"content\",\"title\"],\"displayedAttributes\":[\"id\",\"content\",\"title\",\"metadata\",\"source\",\"tags\"],\"filterableAttributes\":[\"source\",\"tags\",\"metadata.sha\",\"metadata.lang\"],\"sortableAttributes\":[\"created_at\",\"updated_at\"]}"
+      curl -fsS -X PATCH "$$API/indexes/documents/settings" -H "Authorization: Bearer $$KEY" -H "Content-Type: application/json" -d "$$JSON_PAYLOAD" || true
+      curl -fsS -X PATCH "$$API/indexes/chunks/settings" -H "Authorization: Bearer $$KEY" -H "Content-Type: application/json" -d "$$JSON_PAYLOAD" || true
     restart: "no"
 
   tei-embeddings:
@@ -125,8 +125,8 @@ services:
         condition: service_started
       tei-embeddings:
         condition: service_started
-    restart: "no"
-    profiles: ["manual"]
+    restart: "on-failure"
+    # profiles: ["manual"]  # Removed to run automatically
 
   # nginx:  # Optional: behind Traefik or other ingress; enable and map ports only if needed
   #   image: nginx:alpine
