@@ -1,0 +1,37 @@
+# LiteLLM Configuration for RAG stack (CPU-only) using Redis cache + TEI embeddings + Groq LLM
+
+model_list:
+  # Primary chat/completions model on Groq
+  - model_name: groq-llama3
+    litellm_params:
+      model: groq/llama3-8b-8192
+      api_key: os.environ/GROQ_API_KEY
+
+  # Local embeddings served by TEI (OpenAI-compatible embeddings API)
+  - model_name: local-embeddings
+    litellm_params:
+      model: openai/text-embedding-ada-002  # model name is ignored by TEI, kept for OpenAI-compat
+      api_key: "dummy-key"
+      api_base: "http://tei-embeddings:80" # TEI service URL (container internal)
+      custom_llm_provider: openai
+      timeout: 60
+
+# Global LiteLLM settings
+litellm_settings:
+  cache: true
+  cache_params:
+    type: "redis"
+    url: "redis://redis:6379"
+    ttl: 1800
+    supported_call_types: ["completion", "chat_completion", "embedding", "acompletion", "aembedding"]
+
+# Prompt Injection basic guards
+prompt_injection_params:
+  heuristics_check: true
+  similarity_check: false
+  vector_db_check: false
+
+# Routing / fallbacks
+router_settings:
+  fallbacks:
+    - "groq-llama3": []

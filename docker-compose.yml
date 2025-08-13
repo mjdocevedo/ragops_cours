@@ -1,0 +1,144 @@
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.16
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILI_KEY}
+    volumes:
+      - meili_data:/meili_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  meili-init:
+    image: curlimages/curl:8.4.0
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+    entrypoint: ["/bin/sh","-lc"]
+    environment:
+      - MEILI_KEY=${MEILI_KEY}
+      - EMBED_DIM=${EMBED_DIM}
+    command: |
+      set -e
+      DIM="$${EMBED_DIM:-384}"
+      API="http://meilisearch:7700"
+      KEY="$${MEILI_KEY}"
+      # create indexes if missing
+      curl -fsS -X POST "$API/indexes" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"uid":"documents","primaryKey":"id"}' || true
+      curl -fsS -X POST "$API/indexes" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{"uid":"chunks","primaryKey":"id"}' || true
+      # JSON settings payload
+      JSON_PAYLOAD="{\"embedders\":{\"default\":{\"source\":\"userProvided\",\"dimensions\":$DIM}},\"searchableAttributes\":[\"content\",\"title\"],\"displayedAttributes\":[\"id\",\"content\",\"title\",\"metadata\",\"source\",\"tags\"],\"filterableAttributes\":[\"source\",\"tags\",\"metadata.sha\",\"metadata.lang\"],\"sortableAttributes\":[\"created_at\",\"updated_at\"]}"
+      curl -fsS -X PATCH "$API/indexes/documents/settings" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d "$JSON_PAYLOAD" || true
+      curl -fsS -X PATCH "$API/indexes/chunks/settings" -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d "$JSON_PAYLOAD" || true
+    restart: "no"
+
+  tei-embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    platform: linux/amd64
+    environment:
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+      - HUGGINGFACE_HUB_CACHE=/data
+      - HF_HOME=/data
+    volumes:
+      - tei_model_cache:/data
+    command: ["--model-id", "sentence-transformers/all-MiniLM-L6-v2", "--hostname", "0.0.0.0"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    environment:
+      - LITELLM_PROXY_MASTER_KEY=${LITELLM_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml
+    command: ["--config", "/app/config.yaml"]
+    depends_on:
+      - tei-embeddings
+      - redis
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      - MEILI_URL=http://meilisearch:7700
+      - MEILI_KEY=${MEILI_KEY}
+      - PROXY_URL=http://litellm:4000
+      - PROXY_KEY=${LITELLM_KEY}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+      meili-init:
+        condition: service_completed_successfully
+      litellm:
+        condition: service_started
+      tei-embeddings:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    ports:
+      - "18000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx,sys; sys.exit(0) if httpx.get('http://localhost:8000/health',timeout=5).status_code==200 else sys.exit(1)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  ingestion:
+    build: ./backend
+    command: ["python", "ingest.py"]
+    environment:
+      - MEILI_URL=http://meilisearch:7700
+      - MEILI_KEY=${MEILI_KEY}
+      - PROXY_URL=http://litellm:4000
+      - PROXY_KEY=${LITELLM_KEY}
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+      tei-embeddings:
+        condition: service_started
+    restart: "no"
+    profiles: ["manual"]
+
+  # nginx:  # Optional: behind Traefik or other ingress; enable and map ports only if needed
+  #   image: nginx:alpine
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #   ports:
+  #     - "8443:443"
+  #   depends_on:
+  #     - backend
+  #   restart: unless-stopped
+
+volumes:
+  meili_data:
+  redis_data:
+  tei_model_cache:
