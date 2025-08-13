@@ -9,7 +9,7 @@ A production-ready Retrieval-Augmented Generation (RAG) pipeline built with mode
 
 ## 🏗️ Architecture Overview
 
-```
+```txt
 ┌─────────────────────────────────────────────────────────────────────┐
 │                           RAGOPS ARCHITECTURE                        │
 └─────────────────────────────────────────────────────────────────────┘
@@ -222,6 +222,7 @@ litellm_settings:
 ### Core Endpoints
 
 #### Document Management
+
 ```http
 POST /ingest
 Content-Type: application/json
@@ -236,6 +237,7 @@ Content-Type: application/json
 ```
 
 #### Search & Retrieval
+
 ```http
 POST /search
 Content-Type: application/json
@@ -255,6 +257,7 @@ Response:
 ```
 
 #### Direct Chat
+
 ```http
 POST /chat
 Content-Type: application/json
@@ -324,7 +327,7 @@ curl http://localhost:18000/health   # FastAPI Backend
 
 ### Project Structure
 
-```
+```sh
 RAGOPS/
 ├── docker-compose.yml          # Service orchestration
 ├── .env                       # Environment configuration

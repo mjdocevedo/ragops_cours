@@ -11,7 +11,7 @@ import json
 import time
 from datetime import datetime
 
-API_URL = "http://localhost:18000"
+API_URL = "http://backend:8000"
 
 async def comprehensive_rag_assessment():
     """Comprehensive assessment of RAG pipeline components"""
@@ -63,11 +63,11 @@ async def comprehensive_rag_assessment():
         # 2. Meilisearch Service
         print("\n2️⃣  Meilisearch Search Engine")
         try:
-            response = await client.get("http://localhost:7700/health")
+            response = await client.get("http://meilisearch:7700/health")
             if response.status_code == 200:
                 # Get version info
                 version_response = await client.get(
-                    "http://localhost:7700/version",
+                    "http://meilisearch:7700/version",
                     headers={"Authorization": "Bearer change_me_master_key"}
                 )
                 version_info = version_response.json()
