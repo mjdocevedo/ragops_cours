@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 class RAGOPSFeatureTester:
-    def __init__(self, base_url: str = "http://backend:8000"):
+    def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url
         self.session = None
         self.test_results = []
