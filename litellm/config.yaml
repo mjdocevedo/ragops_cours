@@ -4,14 +4,14 @@ model_list:
   # Primary chat/completions model on Groq
   - model_name: groq-llama3
     litellm_params:
-      model: groq/llama3-8b-8192
+      model: groq/llama-3.1-8b-instant
       api_key: os.environ/GROQ_API_KEY
 
   # Local embeddings served by TEI (OpenAI-compatible embeddings API)
   - model_name: local-embeddings
     litellm_params:
       model: openai/text-embedding-ada-002  # model name is ignored by TEI, kept for OpenAI-compat
-      api_key: "dummy-key"
+      api_key: os.environ/GROQ_API_KEY
       api_base: "http://tei-embeddings:80" # TEI service URL (container internal)
       custom_llm_provider: openai
       timeout: 60
