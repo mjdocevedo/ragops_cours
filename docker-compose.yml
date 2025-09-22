@@ -80,16 +80,11 @@ services:
       - PROXY_KEY=${LITELLM_KEY}
       - REDIS_URL=redis://redis:6379
     depends_on:
-      meilisearch:
-        condition: service_healthy
-      meili-init:
-        condition: service_completed_successfully
-      litellm:
-        condition: service_started
-      tei-embeddings:
-        condition: service_started
-      redis:
-        condition: service_started
+      - meilisearch
+      - meili-init
+      - litellm
+      - tei-embeddings
+      - redis
     restart: unless-stopped
     volumes:
       - ./tests:/app/tests
