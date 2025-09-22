@@ -20,7 +20,7 @@ app.include_router(pdf.router, tags=["pdf"])
 # Instrumentator: exposes /metrics, collects default HTTP metrics and process metrics
 instrumentator = Instrumentator(
     should_group_status_codes=False,
-    should_ignore_untemplated=True,
+    should_ignore_untemplated=False,
     should_respect_env_var=False,  # always enable
 )
 instrumentator.instrument(app).expose(app, include_in_schema=False, should_gzip=False)
