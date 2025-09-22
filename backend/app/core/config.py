@@ -8,6 +8,7 @@ class Settings:
     MEILI_KEY: str = os.getenv("MEILI_KEY", "your_master_key_here")
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379")
     PROXY_URL: str = os.getenv("PROXY_URL", "http://litellm:4000")
+    PROXY_KEY: str = os.getenv("PROXY_KEY", "")           
 
     MEILI_INDEX: str = os.getenv("MEILI_INDEX", "documents")
     CHUNKS_INDEX: str = "chunks"
