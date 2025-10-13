@@ -119,6 +119,26 @@ services:
     restart: "on-failure"
     profiles: ["manual"]  # only run manually when needed
 
+  ragas_eval:
+    build: ./backend
+    command: ["python", "app/eval/ragas_eval.py"] # Command to run the script
+    environment:
+      - PROXY_URL=http://litellm:4000
+      - PROXY_KEY=${PROXY_KEY} 
+      - MEILI_URL=http://meilisearch:7700
+      - MEILI_KEY=${MEILI_KEY}
+    depends_on:
+      meilisearch:
+        condition: service_healthy
+      litellm:
+        condition: service_started
+      tei-embeddings:
+        condition: service_started
+      redis:
+        condition: service_started
+    restart: "on-failure"
+    profiles: ["eval"] 
+  
   prometheus:
     image: prom/prometheus:latest
     volumes:

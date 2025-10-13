@@ -18,3 +18,5 @@ litellm>=1.43.0
 prometheus-fastapi-instrumentator>=6.0.0
 prometheus-client>=0.16.0
 
+ragas 
+datasets>=2.19.2 
