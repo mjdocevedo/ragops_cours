@@ -77,11 +77,13 @@ services:
     build: ./backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
-      - MEILI_URL=http://meilisearch:7700
+      - MEILI_URL=${MEILI_URL}
       - MEILI_KEY=${MEILI_KEY}
-      - PROXY_URL=http://litellm:4000
+      - PROXY_URL=${PROXY_URL}
       - PROXY_KEY=${PROXY_KEY}
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=${REDIS_URL}
+      - LITELLM_MODEL=${LITELLM_MODEL}
+      - EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}
     depends_on:
       - meilisearch
       - meili-init
@@ -103,9 +105,9 @@ services:
     build: ./backend
     command: ["python", "seed_data.py"]
     environment:
-      - MEILI_URL=http://meilisearch:7700
+      - MEILI_URL=${MEILI_URL}
       - MEILI_KEY=${MEILI_KEY}
-      - PROXY_URL=http://litellm:4000
+      - PROXY_URL=${PROXY_URL}
       - PROXY_KEY=${PROXY_KEY}
     depends_on:
       meilisearch:
@@ -118,7 +120,7 @@ services:
         condition: service_started
     restart: "on-failure"
     profiles: ["manual"]  # only run manually when needed
-
+  
   prometheus:
     image: prom/prometheus:latest
     volumes:
