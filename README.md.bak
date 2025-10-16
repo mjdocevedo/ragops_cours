@@ -145,10 +145,8 @@ MEILI_KEY=your_secure_master_key_here
 MEILI_INDEX=documents
 EMBED_DIM=384
 
-# LLM & Embeddings Configuration (Required)
-LITELLM_MODEL=groq-llama3
-EMBEDDING_MODEL_NAME=local-embeddings
-PROXY_KEY=your_proxy_key_here
+# LLM Provider Configuration  
+LITELLM_KEY=your_proxy_key_here
 GROQ_API_KEY=your_groq_api_key_here
 
 # Optional: Additional LLM providers
@@ -324,135 +322,6 @@ docker stats
 curl http://localhost:7700/health    # Meilisearch
 curl http://localhost:18000/health   # FastAPI Backend
 ```
-
-## 📊 RAG Evaluation with RAGAS
-
-### Overview
-
-This project integrates RAGAS to evaluate RAG quality with 4 metrics:
-
-- **Faithfulness**: Answer grounded in context
-- **Answer Relevancy**: Answer addresses the question
-
-### Integration Summary
-
-**What Was Fixed:**
-The original implementation had incompatible imports and deprecated API usage for RAGAS 0.3.6. Key issues:
-- Incorrect LangChain imports (wrong module paths)
-- Deprecated RAGAS wrapper classes
-- Missing configuration settings
-- Incorrect model configuration for LiteLLM proxy
-
-**Changes Made:**
-1. **backend/app/core/config.py** - Added 4 RAGAS configuration settings
-2. **backend/app/eval/ragas_eval.py** - Fixed imports, modernized to RAGAS 0.3.6 API
-3. **docker-compose.yml** - Fixed Python module execution command
-4. **tests/validate_ragas_scores.py** - Created automated validation script
-
-**Quick Start (from scratch):**
-
-```bash
-# 1. Run RAGAS evaluation with sample testset
-docker-compose --profile eval up ragas_eval
-
-# 2. Run validation script (ingests test docs + evaluates)
-docker-compose exec backend python tests/validate_ragas_scores.py
-
-# 3. View detailed logs
-docker logs ragops_cours_ragas_eval_1 | grep -E "(faithfulness|answer_relevancy)"
-```
-
-**Expected Results:**
-```
-faithfulness: 0.50-0.90 (answers grounded in context)
-answer_relevancy: 0.80-1.00 (answers relevant to questions)
-context_recall: 0.40-0.80 (context covers ground truth)
-context_precision: 0.40-0.80 (retrieved context is relevant)
-```
-
-**Architecture:**
-- **LLM**: GROQ Llama 3.1 (via LiteLLM proxy at http://litellm:4000/v1)
-- **Embeddings**: Local TEI (via LiteLLM proxy)
-- **Integration**: Direct LangChain ChatOpenAI + OpenAIEmbeddings pointing to proxy
-
-- **Context Recall**: Context covers ground truth
-- **Context Precision**: Retrieved context relevance
-
-### Running Evaluation
-
-```bash
-# Start the RAGAS evaluation service
-docker-compose --profile eval up ragas_eval
-
-# View evaluation logs
-docker logs ragops_cours_ragas_eval_1 -f
-```
-
-### Expected Output
-
-```json
-{
-  "faithfulness": 0.8500,
-  "answer_relevancy": 0.9200,
-  "context_recall": 0.7800,
-  "context_precision": 0.8900
-}
-```
-
-**Score Interpretation:**
-- **0.0-0.4**: Poor
-- **0.4-0.6**: Fair
-- **0.6-0.8**: Good
-- **0.8-1.0**: Excellent
-
-### Configuration
-
-Edit `backend/app/core/config.py`:
-
-```python
-LITELLM_MODEL: str = "groq-llama3"
-LITELLM_URL: str = os.getenv("PROXY_URL", "http://litellm:4000") + "/v1"
-EMBEDDING_MODEL_NAME: str = "local-embeddings"
-TEI_EMBEDDINGS_URL: str = os.getenv("PROXY_URL", "http://litellm:4000") + "/v1"
-```
-
-### Custom Test Cases
-
-Edit `backend/app/eval/ragas_eval.py`:
-
-```python
-example_testset = [
-    {
-        "question": "Your question about indexed documents",
-        "ground_truth": "The expected correct answer"
-    },
-]
-```
-
-### Verifying Scores
-
-1. **Check RAG works**: Test queries return relevant chunks
-2. **Inspect logs**: Verify LLM and embedding calls succeed
-3. **Use realistic data**: Questions must match indexed documents
-4. **Manual validation**: Compare scores with human assessment
-
-### Troubleshooting
-
-```bash
-# Check service logs
-docker logs ragops_cours_litellm_1
-docker logs ragops_cours_ragas_eval_1
-
-# Common issues:
-# - GROQ_API_KEY not set in .env
-# - Questions do not match indexed documents
-# - Services not healthy
-```
-
-### References
-
-- [RAGAS Documentation](https://docs.ragas.io/)
-- [RAGAS Metrics](https://docs.ragas.io/en/latest/concepts/metrics/)
 
 ## 🔧 Development & Customization
 

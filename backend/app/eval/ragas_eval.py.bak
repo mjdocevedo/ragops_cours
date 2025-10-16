@@ -11,34 +11,41 @@ from ragas.metrics import (
     context_precision,
 )
 
+from ragas.llms import LangchainLLMWrapper          
+from ragas.embeddings import LangchainEmbeddingsWrapper 
 
-# Import RAGAS native LiteLLM embeddings
-from langchain_openai import OpenAIEmbeddings
-
-# Import LangChain ChatLiteLLM (works directly with RAGAS 0.3.x)
-from langchain_openai import ChatOpenAI
-
-# Import app modules
-from app.core.config import settings
-from app.core.logging import logger
+from langchain_community import ChatLiteLLM as LangChainLiteLLM 
+from langchain_community import LiteLLMEmbeddings as LangChainLiteLLMEmbedding 
 
 from app.services.rag_service import rag_search
 
-# --- 1. Configure LLM and Embeddings for RAGAS ---
+# --- 1. Ragas LiteLLM/Groq/TEI Configuration ---
 
-# LiteLLM proxy LLM (for GROQ access)
-ragas_llm = ChatOpenAI(
-    base_url=settings.LITELLM_URL,
-    model=settings.LITELLM_MODEL,
-    api_key="dummy"
+# The litellm proxy is available at http://litellm:4000
+# from the perspective of the backend container.
+LITELLM_PROXY_URL = settings.PROXY_URL # e.g., "http://litellm:4000"
+LITELLM_PROXY_KEY = settings.PROXY_KEY # Your PROXY_KEY
+
+# Configure the LLM for Ragas metrics (Faithfulness, Answer Relevance)
+# We use the Ragas LiteLLM wrapper directly
+litellm_llm = LangchainLLMWrapper(
+    model_name=settings.LITELMM_MODEL,
+    api_base=settings.LITELMM_URL,
+    # other params...
 )
 
-# RAGAS native LiteLLM embeddings (for TEI access)
-ragas_embeddings = OpenAIEmbeddings(
-    model=settings.EMBEDDING_MODEL_NAME,
-    base_url=settings.TEI_EMBEDDINGS_URL,
-    api_key="dummy"
+ragas_llm = LLM(llm=litellm_llm)
+
+# Configure the Embeddings for Ragas metrics (Answer Relevance, Context Precision)
+# We use the Ragas LiteLLMEmbedding wrapper directly
+litellm_embedding = LangChainLiteLLMEmbedding(
+    model_name=settings.EMBEDDING_MODEL_NAME,
+    api_base=settings.TEI_EMBEDDINGS_URL,
+    # other params...
 )
+
+# 2. Wrap the LangChain object with Ragas's generic wrapper
+ragas_embeddings = LangchainEmbeddingsWrapper(embeddings=litellm_embedding)
 
 
 # --- 2. Evaluation Logic ---
@@ -92,6 +99,9 @@ async def run_evaluation(testset: List[Dict[str, Any]]):
     # Step 3: Run Ragas Metrics
     
     # Override Ragas defaults with your LiteLLM/Groq/TEI setup
+    for metric in [faithfulness, answer_relevancy, context_recall, context_precision]:
+        metric.llm = ragas_llm
+        metric.embeddings = ragas_embeddings
     
     score = evaluate(
         dataset,
@@ -101,14 +111,12 @@ async def run_evaluation(testset: List[Dict[str, Any]]):
             context_recall,       # Checks if the retrieved context covers the ground truth
             context_precision,    # Checks if the retrieved context is relevant to the question
         ],
-        llm=ragas_llm,
-        embeddings=ragas_embeddings,
-        raise_exceptions=False # Don't stop on a single failure
+        raise_on_error=False # Don't stop on a single failure
     )
 
     logger.info("Ragas Evaluation Complete.")
     print(score)
-    return score.to_pandas()
+    return score.to_dict()
 
 # --- 3. Example Execution (for testing/manual profile) ---
 
