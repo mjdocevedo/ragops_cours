@@ -10,9 +10,9 @@ model_list:
   # Local embeddings served by TEI (OpenAI-compatible embeddings API)
   - model_name: local-embeddings
     litellm_params:
-      model: openai/text-embedding-ada-002  # model name is ignored by TEI, kept for OpenAI-compat
+      model: openai/text-embedding-ada-002 
       api_key: os.environ/GROQ_API_KEY
-      api_base: "http://tei-embeddings:80" # TEI service URL (container internal)
+      api_base: "http://tei-embeddings:80" 
       custom_llm_provider: openai
       timeout: 60
 

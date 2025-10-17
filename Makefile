@@ -18,11 +18,11 @@ help:
 
 build:
 	@echo "🏗️  Building Docker images..."
-	docker compose build
+	docker-compose build
 
 up:
 	@echo "🚀 Starting RAGOPS services..."
-	docker compose up -d
+	docker-compose up -d
 	@echo "⏳ Waiting for services to be ready..."
 	@sleep 10
 	@echo "✅ RAGOPS is ready!"
@@ -31,29 +31,25 @@ up:
 
 down:
 	@echo "⏹️  Stopping RAGOPS services..."
-	docker compose down
+	docker-compose down
 
 restart:
 	@echo "🔄 Restarting RAGOPS services..."
-	docker compose down
-	docker compose up -d
+	docker-compose down
+	docker-compose up -d
 
 logs:
 	@echo "📄 Showing service logs..."
-	docker compose logs -f backend
+	docker-compose logs -f backend
 
 clean:
 	@echo "🧹 Cleaning up Docker resources..."
-	docker compose down -v
+	docker-compose down -v
 	docker system prune -f
 
 test:
 	@echo "🧪 Running comprehensive test suite..."
 	@python3 tests/test_phase2_comprehensive.py
-
-demo:
-	@echo "🎯 Running Phase 2 demonstrations..."
-	@python3 tests/demo_phase2.py
 
 validate:
 	@echo "✅ Validating all RAGOPS features..."
@@ -61,14 +57,14 @@ validate:
 
 # Development targets
 dev-logs:
-	docker compose logs -f
+	docker-compose logs -f
 
 dev-rebuild:
-	docker compose build --no-cache backend
-	docker compose restart backend
+	docker-compose build --no-cache backend
+	docker-compose restart backend
 
 dev-reset:
-	docker compose down -v
-	docker compose up -d
+	docker-compose down -v
+	docker-compose up -d
 	@sleep 10
 	curl -X POST "http://localhost:18000/init-index"

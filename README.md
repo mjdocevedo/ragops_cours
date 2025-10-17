@@ -87,52 +87,20 @@ cp .env.example .env
 
 ```bash
 # Start all services
-docker compose up -d
+docker-compose up -d
 
 # Check service health
-docker compose ps
+docker-compose ps
 
 # View logs
-docker compose logs -f
+docker-compose logs -f
 ```
 
-### 3. Verify Installation
+### 3. Verify health
 
 ```bash
 # Check API health
 curl http://localhost:18000/health
-
-# Access API documentation
-open http://localhost:18000/docs
-
-# Run system validation
-docker compose exec backend python final_rag_test_report.py
-```
-
-### 4. Ingest Sample Documents
-
-```bash
-# Ingest sample documents for testing
-docker compose exec backend python ingest.py
-
-# Or ingest your own documents via API
-curl -X POST "http://localhost:18000/ingest" \
-  -H "Content-Type: application/json" \
-  -d '[{"id": "doc1", "text": "Your document content", "metadata": {"source": "file.pdf"}}]'
-```
-
-### 5. Test RAG Queries
-
-```bash
-# Test search and generation
-curl -X POST "http://localhost:18000/search" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is this document about?", "k": 3}'
-
-# Test direct chat
-curl -X POST "http://localhost:18000/chat" \
-  -H "Content-Type: application/json" \
-  -d '{"messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
 ## 🔧 Configuration
@@ -165,26 +133,40 @@ Edit `litellm/config.yaml` to customize:
 
 ```yaml
 model_list:
-  # Primary chat model
+  # Primary chat/completions model on Groq
   - model_name: groq-llama3
     litellm_params:
-      model: groq/llama3-8b-8192
+      model: groq/llama-3.1-8b-instant
       api_key: os.environ/GROQ_API_KEY
 
-  # Local embeddings
+  # Local embeddings served by TEI (OpenAI-compatible embeddings API)
   - model_name: local-embeddings
     litellm_params:
-      model: openai/text-embedding-ada-002
+      model: openai/text-embedding-ada-002 
+      api_key: os.environ/GROQ_API_KEY
       api_base: "http://tei-embeddings:80"
-      api_key: "dummy-key"
+      custom_llm_provider: openai
+      timeout: 60
 
-# Global settings
+# Global LiteLLM settings
 litellm_settings:
   cache: true
   cache_params:
     type: "redis"
     url: "redis://redis:6379"
     ttl: 1800
+    supported_call_types: ["completion", "chat_completion", "embedding", "acompletion", "aembedding"]
+
+# Prompt Injection basic guards
+prompt_injection_params:
+  heuristics_check: true
+  similarity_check: false
+  vector_db_check: false
+
+# Routing / fallbacks
+router_settings:
+  fallbacks:
+    - "groq-llama3": []
 ```
 
 ## 📊 Service Architecture
@@ -198,7 +180,6 @@ litellm_settings:
 | **LiteLLM Proxy** | 4000 | LLM routing proxy | `GET /health` |
 | **TEI Embeddings** | 80 | Text embeddings service | `GET /health` |
 | **Redis** | 6379 | Caching layer | TCP check |
-| **Nginx** | 8443 | Reverse proxy (optional) | HTTP check |
 
 ### Data Flow
 
@@ -217,103 +198,15 @@ litellm_settings:
    Redis caches: Embeddings (1h TTL) | LLM Responses (10min TTL)
    ```
 
-## 📚 API Documentation
-
-### Core Endpoints
-
-#### Document Management
-
-```http
-POST /ingest
-Content-Type: application/json
-
-[
-  {
-    "id": "doc-1",
-    "text": "Document content here",
-    "metadata": {"source": "file.pdf", "author": "John Doe"}
-  }
-]
-```
-
-#### Search & Retrieval
-
-```http
-POST /search
-Content-Type: application/json
-
-{
-  "query": "What is machine learning?",
-  "k": 5
-}
-
-Response:
-{
-  "answer": "Machine learning is...",
-  "chunks": [...],
-  "total_chunks_found": 10,
-  "cached": false
-}
-```
-
-#### Direct Chat
-
-```http
-POST /chat
-Content-Type: application/json
-
-{
-  "messages": [
-    {"role": "user", "content": "Explain quantum computing"}
-  ],
-  "temperature": 0.3,
-  "model": "groq-llama3"
-}
-```
-
-#### System Status
-```http
-GET /health           # API health
-POST /init-index      # Initialize search indexes
-```
-
-### Interactive Documentation
-
-- **Swagger UI**: http://localhost:18000/docs
-- **ReDoc**: http://localhost:18000/redoc
-
 ## 🧪 Testing & Validation
-
-### Automated Testing
-
-```bash
-# Run comprehensive system validation
-docker compose exec backend python final_rag_test_report.py
-
-# Demo working features
-docker compose exec backend python demo_working_features.py
-
-# Manual ingestion test
-docker compose exec backend python ingest.py
-```
-
-### Performance Benchmarks
-
-The system has been validated with:
-- **API Response Time**: 3-9ms average
-- **Cache Performance**: 5-51x speedup with Redis
-- **Document Processing**: Supports documents from 50 to 5000+ words
-- **Concurrent Requests**: Handles multiple simultaneous queries
-- **Search Accuracy**: Hybrid search with relevance scoring
-
 ### Health Monitoring
 
 ```bash
 # Check all services
-docker compose ps
+docker-compose ps
 
 # View service logs
-docker compose logs [service-name]
+docker-compose logs [service-name]
 
 # Monitor resource usage
 docker stats
@@ -328,67 +221,67 @@ curl http://localhost:18000/health   # FastAPI Backend
 ### Project Structure
 
 ```sh
-RAGOPS/
-├── docker-compose.yml          # Service orchestration
-├── .env                       # Environment configuration
-├── backend/                   # FastAPI application
-│   ├── app/
-│   │   └── main.py           # Main API application
-│   ├── Dockerfile            # Backend container
-│   ├── requirements.txt      # Python dependencies
-│   ├── ingest.py             # Sample data ingestion
-│   ├── demo_working_features.py  # Feature demonstration
-│   └── final_rag_test_report.py  # System validation
-├── litellm/
-│   └── config.yaml           # LLM proxy configuration
-└── nginx/                    # Optional reverse proxy
-    └── nginx.conf
-```
-
-### Adding Custom Documents
-
-```python
-# Via API
-import httpx
-
-documents = [
-    {
-        "id": "custom-doc-1",
-        "text": "Your document content here...",
-        "metadata": {
-            "title": "Document Title",
-            "author": "Author Name",
-            "category": "technical",
-            "tags": ["ai", "machine-learning"]
-        }
-    }
-]
-
-async with httpx.AsyncClient() as client:
-    response = await client.post(
-        "http://localhost:18000/ingest",
-        json=documents
-    )
-    print(response.json())
-```
-
-### Extending LLM Providers
-
-Add new providers in `litellm/config.yaml`:
-
-```yaml
-model_list:
-  # OpenAI GPT-4
-  - model_name: openai-gpt4
-    litellm_params:
-      model: openai/gpt-4
-      api_key: os.environ/OPENAI_API_KEY
-
-  # Anthropic Claude
-  - model_name: claude-3
-    litellm_params:
-      model: anthropic/claude-3-sonnet
-      api_key: os.environ/ANTHROPIC_API_KEY
+.
+├── Makefile
+├── README.md
+├── backend
+│   ├── Dockerfile
+│   ├── app
+│   │   ├── __init__.py
+│   │   ├── api
+│   │   │   ├── __init__.py
+│   │   │   ├── chat.py
+│   │   │   ├── embeddings.py
+│   │   │   ├── health.py
+│   │   │   ├── ingest.py
+│   │   │   ├── pdf.py
+│   │   │   ├── search.py
+│   │   │   └── stats.py
+│   │   ├── core
+│   │   │   ├── clients.py
+│   │   │   ├── config.py
+│   │   │   └── logging.py
+│   │   ├── main.py
+│   │   ├── models
+│   │   │   ├── __init__.py
+│   │   │   ├── chat.py
+│   │   │   ├── documents.py
+│   │   │   ├── health.py
+│   │   │   ├── responses.py
+│   │   │   └── search.py
+│   │   ├── services
+│   │   │   ├── __init__.py
+│   │   │   ├── chunking.py
+│   │   │   ├── embeddings.py
+│   │   │   ├── ingestion.py
+│   │   │   ├── llm_service.py
+│   │   │   ├── pdf_processor.py
+│   │   │   ├── rag_service.py
+│   │   │   └── search_service.py
+│   │   └── utils
+│   │       ├── __init__.py
+│   │       ├── cache.py
+│   │       └── hashing.py
+│   ├── requirements.txt
+│   └── seed_data.py
+├── docker-compose.yml
+├── litellm
+│   └── config.yaml
+├── pdf_files
+│   ├── autoencoders.pdf
+│   ├── linear_algebra.pdf
+│   └── linear_factor_models.pdf
+├── scripts
+│   └── meili-init.sh
+└── tests
+    ├── chunking_validation.py
+    ├── debug_vector_search.py
+    ├── demo_phase2.py
+    ├── demo_working_features.py
+    ├── final_rag_test_report.py
+    ├── test_all_features.py
+    ├── test_direct_ingest.py
+    └── test_phase2_comprehensive.py
 ```
 
 ## 📈 Production Deployment
@@ -428,139 +321,262 @@ model_list:
          o: bind
          device: /data/meilisearch
    ```
+- - -
+# Next Evolution: Advanced Document Processing and Search Enhancement
 
-### Security Hardening
+## 🎯 Overview
 
-1. **Environment Security**:
-   ```bash
-   # Use strong, unique keys
-   MEILI_KEY=$(openssl rand -hex 32)
-   LITELLM_KEY=$(openssl rand -hex 32)
-   
-   # Restrict network access
-   # Configure firewall rules
-   # Use TLS certificates
-   ```
+Phase 3 will extend RAGOPS with advanced document processing capabilities and search result reranking to create a comprehensive enterprise-grade RAG system.
 
-2. **API Security**:
-   - Enable authentication in LiteLLM config
-   - Configure rate limiting
-   - Set up request validation
-   - Monitor API access logs
+### Current Status
+- ✅ **Phase 1**: Text-based chunking and ingestion
+- ✅ **Phase 2**: Embeddings integration with semantic search
+- 🎯 **Phase 3**: PDF processing + reranking (this document)
 
-### Monitoring Setup
+---
 
-```yaml
-# Add to docker-compose.yml
-services:
-  prometheus:
-    image: prom/prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+## 🏗️ Architecture Enhancement
 
-  grafana:
-    image: grafana/grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+### New Components
+```
+┌─────────────────┐    ┌──────────────┐    ┌────────────────┐
+│   PDF Upload    │───▶│   LangChain  │───▶│   Existing     │
+│   Interface     │    │   Processor  │    │   Pipeline     │
+└─────────────────┘    └──────────────┘    └────────────────┘
+                              │
+                              ▼
+                       ┌──────────────┐
+                       │  Cross-      │
+                       │  Encoder     │
+                       │  Reranker    │
+                       └──────────────┘
 ```
 
-## 🔍 Troubleshooting
+### Enhanced Data Flow
+1. **PDF Upload** → LangChain PyPDFLoader → Page extraction
+2. **Text Processing** → RecursiveCharacterTextSplitter → Smart chunking
+3. **Metadata Enrichment** → Page numbers, file info, structure
+4. **Existing Pipeline** → Embeddings → Meilisearch storage
+5. **Enhanced Search** → Initial retrieval → Cross-encoder reranking → Final results
 
-### Common Issues
+---
 
-1. **Service Won't Start**:
-   ```bash
-   # Check logs
-   docker compose logs [service-name]
-   
-   # Verify environment
-   docker compose config
-   
-   # Restart services
-   docker compose restart [service-name]
-   ```
+## 🎯 Quick Start
 
-2. **Search Not Working**:
-   ```bash
-   # Check Meilisearch indexes
-   curl -H "Authorization: Bearer $MEILI_KEY" \
-        http://localhost:7700/indexes
-   
-   # Reinitialize indexes
-   curl -X POST http://localhost:18000/init-index
-   ```
+### 1. Start the System
+```bash
+make up
+```
+*This builds images, starts all services, and waits for readiness*
 
-3. **LLM Errors**:
-   ```bash
-   # Verify API keys
-   docker compose exec backend env | grep -E "(GROQ|OPENAI)_API_KEY"
-   
-   # Test LiteLLM directly
-   docker compose logs litellm
-   ```
+### 2. Validate Installation
+```bash
+make test
+```
+*Runs comprehensive Phase 2 validation suite*
 
-4. **Performance Issues**:
-   ```bash
-   # Check resource usage
-   docker stats
-   
-   # Monitor cache hit rates
-   docker compose exec backend python demo_working_features.py
-   
-   # Clear Redis cache
-   docker compose exec redis redis-cli FLUSHALL
-   ```
+### 3. Try a Demo
+```bash
+make demo
+```
+*Interactive demonstration of key features*
 
-### Debug Commands
+### 4. Check All Features
+```bash
+make validate
+```
+*Complete system validation and feature testing*
+
+---
+
+## 🛠️ Available Commands
+
+Run `make help` to see all available commands:
 
 ```bash
-# Access service containers
-docker compose exec backend bash
-docker compose exec meilisearch sh
-
-# Check network connectivity
-docker compose exec backend ping meilisearch
-docker compose exec backend ping litellm
-
-# View detailed logs
-docker compose logs -f --tail=100
-
-# Restart problematic services
-docker compose restart backend litellm
+make help
 ```
 
-## 📖 Additional Resources
+### Core Operations
+- `make up` - Start all RAGOPS services
+- `make down` - Stop all services  
+- `make restart` - Restart all services
+- `make logs` - Show backend service logs
+- `make clean` - Clean up Docker resources
 
-### Documentation
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Meilisearch Documentation](https://docs.meilisearch.com/)
-- [LiteLLM Documentation](https://docs.litellm.ai/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
+### Testing & Validation
+- `make test` - Run Phase 2 comprehensive tests
+- `make demo` - Run feature demonstrations  
+- `make validate` - Validate all system features
 
-### Community
-- [Issues & Bug Reports](https://github.com/your-repo/issues)
-- [Feature Requests](https://github.com/your-repo/discussions)
-- [Contributing Guidelines](CONTRIBUTING.md)
+### Development
+- `make dev-logs` - Follow all service logs
+- `make dev-rebuild` - Rebuild and restart backend only
+- `make dev-reset` - Complete system reset with fresh data
 
-### Deployment Examples
-- [AWS ECS Deployment](docs/aws-ecs.md)
-- [Kubernetes Deployment](docs/kubernetes.md)
-- [Docker Swarm Deployment](docs/docker-swarm.md)
+---
 
-## 📄 License
+## 🏗️ System Architecture
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```
+┌─────────────────┐    ┌──────────────┐    ┌────────────────┐
+│   Frontend      │───▶│   Backend    │───▶│  Meilisearch   │
+│   (Future)      │    │   FastAPI    │    │   + Vector     │
+└─────────────────┘    └──────────────┘    └────────────────┘
+                              │                       │
+                              ▼                       ▼
+                       ┌──────────────┐    ┌────────────────┐
+                       │   LiteLLM    │    │     Redis      │
+                       │   Proxy      │    │    Cache       │
+                       └──────────────┘    └────────────────┘
+                              │
+                              ▼
+                       ┌──────────────┐    ┌────────────────┐
+                       │     TEI      │    │     Groq       │
+                       │ Embeddings   │    │     LLM        │
+                       └──────────────┘    └────────────────┘
+```
 
-## 🤝 Contributing
+### Services Overview
+- **Backend** (Port 18000): FastAPI with Phase 2 embeddings
+- **Meilisearch** (Port 7700): Vector-enabled search engine
+- **TEI-Embeddings** (Port 8080): Text embeddings inference
+- **LiteLLM** (Port 4000): Multi-provider LLM proxy
+- **Redis** (Port 6379): Embedding cache layer
+- **Meili-Init**: Automated index configuration
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+---
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+## 📡 API Reference
+
+### Core Endpoints
+
+#### Health Check
+```bash
+curl -s http://localhost:18000/health | jq .
+```
+**Response**:
+```json
+{
+  "status": "healthy",
+  "embeddings_available": true,
+  "embedding_dimensions": 384
+}
+```
+
+#### Document Ingestion
+```bash
+curl -X POST "http://localhost:18000/ingest" \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "id": "doc1",
+    "text": "Your document content here...",
+    "metadata": {"title": "Document Title", "category": "docs"}
+  }]' | jq .
+```
+
+#### Semantic Search & RAG
+```bash
+curl -X POST "http://localhost:18000/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What are vector embeddings?", "k": 5}' | jq .
+```
+
+#### Test Embeddings
+```bash
+curl -X POST "http://localhost:18000/test-embeddings" \
+  -H "Content-Type: application/json" \
+  -d '["text to embed", "another text"]' | jq .
+```
+
+#### Initialize Indexes
+```bash
+curl -X POST "http://localhost:18000/init-index"
+```
+
+---
+
+## 🔧 Configuration
+
+### Environment Setup
+Create a `.env` file with your configuration:
+
+```bash
+# Required: Groq API Key
+GROQ_API_KEY=your_groq_api_key_here
+
+# Meilisearch Configuration  
+MEILI_KEY=change_me_master_key
+
+# Performance Settings (optional)
+REDIS_CACHE_TTL=3600
+MAX_CHUNK_SIZE=500
+CHUNK_OVERLAP=50
+```
+
+### Service Configuration
+All service URLs are automatically configured for Docker Compose:
+- `PROXY_URL=http://litellm:4000`
+- `MEILISEARCH_URL=http://meilisearch:7700`
+- `REDIS_URL=redis://redis:6379`
+- `TEI_URL=http://tei-embeddings:8080`
+
+---
+
+## 🧪 Testing & Validation
+
+### Using Makefile Commands
+
+#### Quick Validation
+```bash
+make test
+```
+*Runs comprehensive Phase 2 test suite*
+
+#### Full System Validation
+```bash
+make validate  
+```
+*Tests all features and generates detailed reports*
+
+
+### Test Files Organization
+All tests are in the `tests/` directory:
+- `tests/test_phase2_comprehensive.py` - Complete Phase 2 validation
+- `tests/test_all_features.py` - Comprehensive feature testing
+- `tests/chunking_validation.py` - Text chunking validation
+
+---
+
+#### Check System Status
+```bash
+# After make up, check services
+docker compose ps
+
+# Check resource usage
+docker stats
+```
+
+### Maintenance Tasks
+
+#### Clean Docker Resources
+```bash
+make clean
+```
+*Removes containers, volumes, and prunes system*
+
+#### Manual Cache Clear
+```bash
+docker compose exec redis redis-cli FLUSHALL
+```
+
+#### Backup Data
+```bash
+# Backup documents
+curl -H "Authorization: Bearer $MEILI_KEY" \
+  "http://localhost:7700/indexes/documents/documents" > backup_documents.json
+
+# Backup chunks  
+curl -H "Authorization: Bearer $MEILI_KEY" \
+  "http://localhost:7700/indexes/chunks/documents" > backup_chunks.json
+```
