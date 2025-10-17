@@ -51,10 +51,6 @@ test:
 	@echo "🧪 Running comprehensive test suite..."
 	@python3 tests/test_phase2_comprehensive.py
 
-validate:
-	@echo "✅ Validating all RAGOPS features..."
-	@python3 tests/test_all_features.py
-
 # Development targets
 dev-logs:
 	docker-compose logs -f
