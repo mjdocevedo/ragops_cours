@@ -12,8 +12,6 @@ help:
 	@echo "  logs       - Show service logs"
 	@echo "  clean      - Clean up Docker resources"
 	@echo "  test       - Run comprehensive test suite"
-	@echo "  demo       - Run feature demonstrations"
-	@echo "  validate   - Validate Phase 2 functionality"
 	@echo ""
 
 build:
